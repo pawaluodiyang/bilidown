@@ -40,29 +40,19 @@ jobs:
       - name: Download FFmpeg for Windows
         run: |
           mkdir -p server/bin
-          # Download a lightweight static build of ffmpeg for Windows
-          wget -q https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/win32-x64.zip
-          unzip win32-x64.zip
-          mv ffmpeg.exe server/bin/
-          rm win32-x64.zip
+          sudo apt-get update && sudo apt-get install -y unzip
+          # Download a maintained Windows ffmpeg build
+          wget -q https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip
+          unzip -q ffmpeg-master-latest-win64-gpl.zip
+          mv ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe server/bin/
+          rm -rf ffmpeg-master-latest-win64-gpl*
           chmod +x server/bin/ffmpeg.exe
-
-      - name: Install Dependencies
+      - name: Pull cross-compile image
+        run: docker pull iuroc/cgo-cross-build:latest
+      - name: Run GoReleaser in Docker
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64 pkg-config gcc libayatana-appindicator3-dev
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23' # Adjust version as needed, checked go.mod it has 1.23 implied or latest
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
-          workdir: server
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          docker run --rm \
+            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            -v $PWD:/usr/src/data \
+            -w /usr/src/data/server \
+            iuroc/cgo-cross-build goreleaser release --clean

@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Build Frontend
+        run: |
+          cd client
+          pnpm install
+          pnpm build
+          # Verify static files are generated
+          ls -R ../server/static
+
+      - name: Download FFmpeg for Windows
+        run: |
+          mkdir -p server/bin
+          # Download a lightweight static build of ffmpeg for Windows
+          wget -q https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/win32-x64.zip
+          unzip win32-x64.zip
+          mv ffmpeg.exe server/bin/
+          rm win32-x64.zip
+          chmod +x server/bin/ffmpeg.exe
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64 pkg-config gcc libayatana-appindicator3-dev
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23' # Adjust version as needed, checked go.mod it has 1.23 implied or latest
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+          workdir: server
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
